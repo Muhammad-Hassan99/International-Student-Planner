@@ -22,7 +22,7 @@ function CountryContent() {
     ].sort();
 
     useEffect(() => {
-        fetch("http://localhost:8000/countries")
+        fetch("http://https://international-student-planner-production-c1eb.up.railway.app/countries")
             .then(res => res.json())
             .then(data => {
                 if (data.countries && data.countries.length > 0) {

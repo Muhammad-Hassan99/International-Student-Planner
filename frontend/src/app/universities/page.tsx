@@ -28,7 +28,7 @@ export default function Universities() {
             `International Business School ${country}`
         ];
 
-        fetch(`http://localhost:8000/universities/${encodeURIComponent(country)}`)
+        fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/universities/${encodeURIComponent(country)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.universities && data.universities.length > 0) {

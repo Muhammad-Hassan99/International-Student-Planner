@@ -36,7 +36,7 @@ function PlanContent() {
 
   useEffect(() => {
     // Fetch all countries on load
-    fetch("http://localhost:8000/countries")
+    fetch("http://https://international-student-planner-production-c1eb.up.railway.app/countries")
       .then((res) => res.json())
       .then((data) => {
         if (data.countries) setCountries(data.countries);
@@ -68,8 +68,8 @@ function PlanContent() {
       setLoadingConfig(true);
       try {
         const [citiesRes, unisRes] = await Promise.all([
-          fetch(`http://localhost:8000/cities/${selectedCountry}`),
-          fetch(`http://localhost:8000/universities/${selectedCountry}`)
+          fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/cities/${selectedCountry}`),
+          fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/universities/${selectedCountry}`)
         ]);
         const citiesData = await citiesRes.json();
         const unisData = await unisRes.json();
@@ -125,7 +125,7 @@ function PlanContent() {
     const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch("http://localhost:8000/generate-plan", {
+      const response = await fetch("http://https://international-student-planner-production-c1eb.up.railway.app/generate-plan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
