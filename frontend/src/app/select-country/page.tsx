@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 function CountryContent() {
     const searchParams = useSearchParams();
@@ -22,7 +23,7 @@ function CountryContent() {
     ].sort();
 
     useEffect(() => {
-        fetch("http://https://international-student-planner-production-c1eb.up.railway.app/countries")
+        fetch(`${API_BASE_URL}/countries`)
             .then(res => res.json())
             .then(data => {
                 if (data.countries && data.countries.length > 0) {

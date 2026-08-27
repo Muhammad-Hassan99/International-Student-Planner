@@ -1,19 +1,20 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
 
 class UserCreate(BaseModel):
-    name: str
-    email: str
-    password: str
+    name: str = Field(..., min_length=1, description="User full name")
+    email: str = Field(..., min_length=3, description="User email address")
+    password: str = Field(..., min_length=6, description="Password with minimum 6 characters")
 
 class UserLogin(BaseModel):
-    email: str
-    password: str
+    email: str = Field(..., min_length=3, description="User email address")
+    password: str = Field(..., min_length=1, description="User password")
 
 class UserResponse(BaseModel):
     id: str
     name: str
     email: str
+    subscription: Optional[Dict[str, Any]] = None
 
 class SubscriptionRequest(BaseModel):
     plan_type: str
@@ -89,3 +90,5 @@ class GeneratedPlan(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional[UserResponse] = None
+

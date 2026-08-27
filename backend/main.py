@@ -1,19 +1,31 @@
 import os
+from pathlib import Path
+from typing import Optional
 import pycountry
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
-from models import StudentRequest, GeneratedPlan, UserCreate, UserLogin, UserResponse, ChatRequest, Token, SubscriptionRequest
+from models import (
+    StudentRequest,
+    GeneratedPlan,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    ChatRequest,
+    Token,
+    SubscriptionRequest
+)
 from ai_service import generate_student_plan, answer_chat_query, get_dynamic_country_data
 import auth
-from auth import get_password_hash, verify_password, create_access_token
-import jwt
+from auth import get_password_hash, verify_password, create_access_token, decode_access_token
 from dotenv import load_dotenv
 
-load_dotenv()
+# Ensure .env is loaded from backend directory
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 db_client = None
 
@@ -22,17 +34,17 @@ async def lifespan(app: FastAPI):
     global db_client
     mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
     try:
-        db_client = AsyncIOMotorClient(mongodb_uri, serverSelectionTimeoutMS=2000)
+        db_client = AsyncIOMotorClient(mongodb_uri, serverSelectionTimeoutMS=4000)
         await db_client.admin.command('ping')
-        print("Connected to MongoDB!")
+        print("Connected to MongoDB Atlas!")
     except Exception as e:
-        print(f"Warning: Failed to connect to MongoDB, running without DB saving: {e}")
+        print(f"Warning: Failed to connect to MongoDB: {e}")
         db_client = None
     yield
     if db_client:
         db_client.close()
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="EduGlobal AI Backend API", version="2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,59 +54,128 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"message": "EduGlobal AI Backend API is running V2."}
+
 def get_db():
     if db_client is None:
         return None
     return db_client.eduglobal
 
-@app.get("/")
-def read_root():
-    return {"message": "EduGlobal AI Backend API is running V2."}
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    try:
-        payload = jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    email = payload.get("sub").strip().lower()
+    name = payload.get("name", "")
     
     db = get_db()
     if db is not None:
         user = await db.users.find_one({"email": email})
         if user:
             return user
-    return {"email": email}
+            
+    return {"email": email, "name": name, "_id": ""}
 
 # AUTH ENDPOINTS
 @app.post("/signup", response_model=Token)
 async def signup(user: UserCreate):
+    name = user.name.strip()
+    email = user.email.strip().lower()
+    password = user.password
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email address is required")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
     db = get_db()
+    user_id = ""
+    default_subscription = {
+        "plan_type": "Basic",
+        "start_date": datetime.now(timezone.utc).isoformat(),
+        "status": "active"
+    }
+
     if db is not None:
-        existing = await db.users.find_one({"email": user.email})
+        existing = await db.users.find_one({"email": email})
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
         
-        hashed_pw = get_password_hash(user.password)
-        new_user = {"name": user.name, "email": user.email, "hashed_password": hashed_pw}
-        await db.users.insert_one(new_user)
-        
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+        hashed_pw = get_password_hash(password)
+        new_user = {
+            "name": name,
+            "email": email,
+            "hashed_password": hashed_pw,
+            "subscription": default_subscription,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        res = await db.users.insert_one(new_user)
+        user_id = str(res.inserted_id)
+    else:
+        # If DB temporarily unavailable, raise error to protect data integrity
+        raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+
+    access_token = create_access_token(data={"sub": email, "name": name})
+    user_response = UserResponse(
+        id=user_id,
+        name=name,
+        email=email,
+        subscription=default_subscription
+    )
+    return {"access_token": access_token, "token_type": "bearer", "user": user_response}
 
 @app.post("/login", response_model=Token)
 async def login(user: UserLogin):
+    email = user.email.strip().lower()
+    password = user.password
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+
     db = get_db()
-    if db is not None:
-        db_user = await db.users.find_one({"email": user.email})
-        if not db_user or not verify_password(user.password, db_user["hashed_password"]):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-            
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+
+    db_user = await db.users.find_one({"email": email})
+    if not db_user or not verify_password(password, db_user.get("hashed_password", "")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+    name = db_user.get("name", email.split("@")[0])
+    access_token = create_access_token(data={"sub": email, "name": name})
+    user_response = UserResponse(
+        id=str(db_user.get("_id", "")),
+        name=name,
+        email=email,
+        subscription=db_user.get("subscription", {"plan_type": "Basic"})
+    )
+    return {"access_token": access_token, "token_type": "bearer", "user": user_response}
+
+@app.get("/me", response_model=UserResponse)
+async def get_me(current_user: dict = Depends(get_current_user)):
+    return UserResponse(
+        id=str(current_user.get("_id", "")),
+        name=current_user.get("name", ""),
+        email=current_user.get("email", ""),
+        subscription=current_user.get("subscription", {"plan_type": "Basic", "status": "active"})
+    )
 
 # DYNAMIC DATA ENDPOINTS
 @app.get("/countries")
@@ -166,7 +247,7 @@ async def subscribe(req: SubscriptionRequest, user: dict = Depends(get_current_u
         
     subscription_data = {
         "plan_type": req.plan_type,
-        "start_date": datetime.utcnow().isoformat(),
+        "start_date": datetime.now(timezone.utc).isoformat(),
         "status": "active"
     }
     
@@ -187,7 +268,7 @@ async def generate_plan_endpoint(request: StudentRequest, user: dict = Depends(g
             plan_type = db_user.get("subscription", {}).get("plan_type", "Basic")
             
             if plan_type == "Basic":
-                current_month = datetime.utcnow().strftime("%Y-%m")
+                current_month = datetime.now(timezone.utc).strftime("%Y-%m")
                 usage_count = db_user.get("usage", {}).get(current_month, 0)
                 if usage_count >= 3:
                     raise HTTPException(status_code=403, detail="Basic plan limit reached (3 generations/month). Please upgrade your plan.")
@@ -239,4 +320,3 @@ async def chat_endpoint(request: ChatRequest, user: dict = Depends(get_current_u
             print(f"Db insert failed: {e}")
             
     return {"reply": reply}
-

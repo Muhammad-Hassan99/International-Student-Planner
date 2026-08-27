@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 function UniversityContent() {
     const searchParams = useSearchParams();
@@ -19,7 +20,7 @@ function UniversityContent() {
             return;
         }
 
-        fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/universities/${encodeURIComponent(country)}`)
+        fetch(`${API_BASE_URL}/universities/${encodeURIComponent(country)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.universities) setUniversities(data.universities);

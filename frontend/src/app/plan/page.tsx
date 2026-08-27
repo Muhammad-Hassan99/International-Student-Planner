@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 // Currency and cost mapping based on country
 const COUNTRY_STATS: Record<string, { currency: string, baseCost: number }> = {
@@ -36,7 +37,7 @@ function PlanContent() {
 
   useEffect(() => {
     // Fetch all countries on load
-    fetch("http://https://international-student-planner-production-c1eb.up.railway.app/countries")
+    fetch(`${API_BASE_URL}/countries`)
       .then((res) => res.json())
       .then((data) => {
         if (data.countries) setCountries(data.countries);
@@ -68,8 +69,8 @@ function PlanContent() {
       setLoadingConfig(true);
       try {
         const [citiesRes, unisRes] = await Promise.all([
-          fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/cities/${selectedCountry}`),
-          fetch(`http://https://international-student-planner-production-c1eb.up.railway.app/universities/${selectedCountry}`)
+          fetch(`${API_BASE_URL}/cities/${selectedCountry}`),
+          fetch(`${API_BASE_URL}/universities/${selectedCountry}`)
         ]);
         const citiesData = await citiesRes.json();
         const unisData = await unisRes.json();
@@ -125,7 +126,7 @@ function PlanContent() {
     const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch("http://https://international-student-planner-production-c1eb.up.railway.app/generate-plan", {
+      const response = await fetch(`${API_BASE_URL}/generate-plan`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

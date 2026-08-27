@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/api";
 
 const countryData: Record<string, any> = {
     "United States": {
@@ -124,7 +125,7 @@ export default function CompareCountries() {
     const [showComparison, setShowComparison] = useState(false);
 
     useEffect(() => {
-        fetch("http://https://international-student-planner-production-c1eb.up.railway.app/countries")
+        fetch(`${API_BASE_URL}/countries`)
             .then(res => res.json())
             .then(data => {
                 if (data.countries) {

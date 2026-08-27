@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { API_BASE_URL } from "@/lib/api";
 
 type Message = {
     role: "user" | "model" | "assistant";
@@ -157,7 +158,7 @@ export default function Chatbot() {
             // Map "assistant" space to "model" for backend if needed, but backend expects "user" and "model"/"assistant".
             const history = messages.filter(m => m.role !== "assistant" || m.content !== "Hi! I'm your AI counselor. Ask me anything about universities, visas, or budget planning!");
 
-            const response = await fetch("http://https://international-student-planner-production-c1eb.up.railway.app/chat", {
+            const response = await fetch(`${API_BASE_URL}/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
