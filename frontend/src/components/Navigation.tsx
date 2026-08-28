@@ -19,31 +19,33 @@ export default function Navigation() {
         setToken(currentToken);
         setUser(storedUser);
 
-        if (currentToken) {
-            // Verify token validity with backend
-            const backendUser = await fetchCurrentUser(currentToken);
-            if (backendUser) {
-                setUser(backendUser);
-                localStorage.setItem("user", JSON.stringify(backendUser));
-            } else if (currentToken && !backendUser && storedUser === null) {
-                // If token invalid and cannot fetch user, clear
-                clearAuthSession();
-                setToken(null);
-                setUser(null);
-            }
+        if (!currentToken) return;
+
+        let backendUser: UserProfile | null = null;
+        try {
+            backendUser = await fetchCurrentUser(currentToken);
+        } catch {
+            return;
         }
+
+        if (getAuthToken() !== currentToken) return;
+
+        if (backendUser) {
+            setUser(backendUser);
+            localStorage.setItem("user", JSON.stringify(backendUser));
+            return;
+        }
+
+        clearAuthSession();
+        setToken(null);
+        setUser(null);
     };
 
     useEffect(() => {
         setIsMounted(true);
         syncAuthState();
 
-        const handleAuthChange = () => {
-            const currentToken = getAuthToken();
-            const storedUser = getStoredUser();
-            setToken(currentToken);
-            setUser(storedUser);
-        };
+        const handleAuthChange = () => void syncAuthState();
 
         window.addEventListener("storage", handleAuthChange);
         window.addEventListener("auth-change", handleAuthChange);
@@ -52,7 +54,7 @@ export default function Navigation() {
             window.removeEventListener("storage", handleAuthChange);
             window.removeEventListener("auth-change", handleAuthChange);
         };
-    }, [pathname]);
+    }, []);
 
     const handleLogout = () => {
         clearAuthSession();

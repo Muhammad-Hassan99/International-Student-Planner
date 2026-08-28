@@ -27,6 +27,11 @@ export function getAuthToken(): string | null {
     return localStorage.getItem("token");
 }
 
+export function getAuthHeaders(): Record<string, string> {
+    const token = getAuthToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export function getStoredUser(): UserProfile | null {
     if (typeof window === "undefined") return null;
     try {
@@ -54,15 +59,14 @@ export function clearAuthSession(): void {
 }
 
 export async function fetchCurrentUser(token: string): Promise<UserProfile | null> {
-    try {
-        const res = await fetch(`${API_BASE_URL}/me`, {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch {
-        return null;
+    const res = await fetch(`${API_BASE_URL}/me`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+    if (res.status === 401 || res.status === 403) return null;
+    if (!res.ok) {
+        throw new Error(`/me request failed with status ${res.status}`);
     }
+    return await res.json();
 }

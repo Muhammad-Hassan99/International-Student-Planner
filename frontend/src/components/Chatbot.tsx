@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, getAuthHeaders, getAuthToken } from "@/lib/api";
 
 type Message = {
     role: "user" | "model" | "assistant";
@@ -152,7 +152,13 @@ export default function Chatbot() {
         setInput("");
         setLoading(true);
 
-        const token = localStorage.getItem("token");
+        const token = getAuthToken();
+
+        if (!token) {
+            setMessages((prev) => [...prev, { role: "assistant", content: "Please log in to use the AI chat." }]);
+            setLoading(false);
+            return;
+        }
 
         try {
             // Map "assistant" space to "model" for backend if needed, but backend expects "user" and "model"/"assistant".
@@ -162,7 +168,7 @@ export default function Chatbot() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    ...getAuthHeaders()
                 },
                 body: JSON.stringify({ message: userMsg.content, history, language, mode })
             });
