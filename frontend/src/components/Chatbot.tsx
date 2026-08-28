@@ -1,11 +1,22 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { API_BASE_URL, getAuthHeaders, getAuthToken } from "@/lib/api";
+import { getAuthHeaders, getAuthToken } from "@/lib/api";
 
 type Message = {
     role: "user" | "model" | "assistant";
     content: string;
+};
+
+type SpeechRecognitionLike = {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    start: () => void;
+    stop: () => void;
+    onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+    onerror: ((event: { error: string }) => void) | null;
+    onend: (() => void) | null;
 };
 
 export default function Chatbot() {
@@ -15,14 +26,19 @@ export default function Chatbot() {
     ]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    const [streamingStarted, setStreamingStarted] = useState(false);
+    const [isNearBottom, setIsNearBottom] = useState(true);
+    const [showJumpToLatest, setShowJumpToLatest] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const [language, setLanguage] = useState("English");
     const [mode, setMode] = useState("Mentor Mode");
     const [isRecording, setIsRecording] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
 
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const synthRef = useRef<SpeechSynthesis | null>(null);
 
     // Initialize messages from sessionStorage on mount
@@ -31,7 +47,7 @@ export default function Chatbot() {
         if (stored) {
             try {
                 setMessages(JSON.parse(stored));
-            } catch (e) {
+            } catch {
                 console.error("Failed to parse chat history");
             }
         }
@@ -45,18 +61,22 @@ export default function Chatbot() {
     // Initialize Web Speech API
     useEffect(() => {
         if (typeof window !== "undefined") {
-            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            const speechWindow = window as Window & {
+                SpeechRecognition?: new () => SpeechRecognitionLike;
+                webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+            };
+            const SpeechRecognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
             if (SpeechRecognition) {
                 recognitionRef.current = new SpeechRecognition();
                 recognitionRef.current.continuous = false;
                 recognitionRef.current.interimResults = false;
 
-                recognitionRef.current.onresult = (event: any) => {
+                recognitionRef.current.onresult = (event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => {
                     const transcript = event.results[0][0].transcript;
                     setInput(transcript);
                 };
 
-                recognitionRef.current.onerror = (event: any) => {
+                recognitionRef.current.onerror = (event: { error: string }) => {
                     console.error("Speech recognition error", event.error);
                     setIsRecording(false);
                 };
@@ -116,8 +136,8 @@ export default function Chatbot() {
 
             utterance.onstart = () => setIsSpeaking(true);
             utterance.onend = () => setIsSpeaking(false);
-            utterance.onerror = (e) => {
-                console.error("TTS error:", e);
+            utterance.onerror = () => {
+                console.error("TTS error");
                 setIsSpeaking(false);
             };
             synthRef.current.speak(utterance);
@@ -134,15 +154,22 @@ export default function Chatbot() {
         }
     };
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+        setShowJumpToLatest(false);
+    };
+
+    const handleMessagesScroll = () => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+        const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+        setIsNearBottom(nearBottom);
+        setShowJumpToLatest(!nearBottom);
     };
 
     useEffect(() => {
-        if (isOpen) {
-            setTimeout(scrollToBottom, 100);
-        }
-    }, [messages, isOpen]);
+        if (isOpen && isNearBottom) setTimeout(() => scrollToBottom("auto"), 0);
+    }, [messages, isOpen, isNearBottom]);
 
     const handleSend = async () => {
         if (!input.trim() || loading) return;
@@ -151,6 +178,9 @@ export default function Chatbot() {
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setLoading(true);
+        setStreamingStarted(false);
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
         const token = getAuthToken();
 
@@ -161,16 +191,16 @@ export default function Chatbot() {
         }
 
         try {
-            // Map "assistant" space to "model" for backend if needed, but backend expects "user" and "model"/"assistant".
-            const history = messages.filter(m => m.role !== "assistant" || m.content !== "Hi! I'm your AI counselor. Ask me anything about universities, visas, or budget planning!");
+            const history = [...messages, userMsg].filter(m => m.role !== "assistant" || m.content !== "Hi! I'm your AI counselor. Ask me anything about universities, visas, or budget planning!");
 
-            const response = await fetch(`${API_BASE_URL}/chat`, {
+            const response = await fetch("/api/chat", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     ...getAuthHeaders()
                 },
-                body: JSON.stringify({ message: userMsg.content, history, language, mode })
+                body: JSON.stringify({ history, language, mode }),
+                signal: abortController.signal
             });
 
             if (!response.ok) {
@@ -179,19 +209,46 @@ export default function Chatbot() {
                 }
                 throw new Error("Network response was not ok");
             }
-            const data = await response.json();
-
-            setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-            speakText(data.reply);
-        } catch (error: any) {
-            if (error.message === "unauthorized") {
+            if (!response.body) throw new Error("stream_unavailable");
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let reply = "";
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                reply += decoder.decode(value, { stream: true });
+                setStreamingStarted(true);
+                setMessages((prev) => {
+                    const next = [...prev];
+                    const last = next.length - 1;
+                    if (next[last]?.role === "assistant") {
+                        next[last] = { ...next[last], content: reply };
+                    } else {
+                        next.push({ role: "assistant", content: reply });
+                    }
+                    return next;
+                });
+            }
+            if (reply) speakText(reply);
+        } catch (error: unknown) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+            if (error instanceof Error && error.message === "unauthorized") {
                 setMessages((prev) => [...prev, { role: "assistant", content: "Please log in to use the AI chat." }]);
             } else {
                 setMessages((prev) => [...prev, { role: "assistant", content: "Oops, I had trouble connecting to the server. Try again!" }]);
             }
         } finally {
             setLoading(false);
+            setStreamingStarted(false);
+            abortControllerRef.current = null;
         }
+    };
+
+    const handleStop = () => {
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
+        setLoading(false);
+        setStreamingStarted(false);
     };
 
     return (
@@ -243,7 +300,7 @@ export default function Chatbot() {
                     </div>
 
                     {/* Messages */}
-                    <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50">
+                    <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="relative flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50">
                         {messages.map((msg, i) => (
                             <div key={i} className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === "user"
                                 ? "bg-primary text-white self-end rounded-tr-sm"
@@ -252,7 +309,7 @@ export default function Chatbot() {
                                 {msg.content}
                             </div>
                         ))}
-                        {loading && (
+                        {loading && !streamingStarted && (
                             <div className="bg-white dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 self-start rounded-2xl rounded-tl-sm shadow-sm p-3 max-w-[85%] flex items-center gap-2">
                                 <span className="animate-bounce">●</span>
                                 <span className="animate-bounce delay-100">●</span>
@@ -260,6 +317,11 @@ export default function Chatbot() {
                             </div>
                         )}
                         <div ref={messagesEndRef} />
+                        {showJumpToLatest && (
+                            <button onClick={() => scrollToBottom()} className="sticky bottom-1 self-center bg-primary text-white text-xs px-3 py-1.5 rounded-full shadow-lg">
+                                Jump to latest
+                            </button>
+                        )}
                     </div>
 
                     {/* Input */}
@@ -281,11 +343,11 @@ export default function Chatbot() {
                             disabled={loading}
                         />
                         <button
-                            onClick={handleSend}
-                            disabled={loading || !input.trim()}
+                            onClick={loading ? handleStop : handleSend}
+                            disabled={!loading && !input.trim()}
                             className="bg-primary text-white p-2 rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center w-10 h-10 shrink-0 shadow-lg shadow-primary/20"
                         >
-                            <span className="material-symbols-outlined text-sm">send</span>
+                            <span className="material-symbols-outlined text-sm">{loading ? "stop" : "send"}</span>
                         </button>
                     </div>
                 </div>
