@@ -1,10 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-export const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
-export const CHAT_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+export const gemini = geminiApiKey ? new GoogleGenAI({ apiKey: geminiApiKey }) : null;
+export const CHAT_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
 export function getChatSystemPrompt(language: string, mode: string): string {
     return `You are an AI international student counselor. Help with universities, applications, visas, scholarships, accommodation, budgets, ROI, documents, and travel preparation.
 
