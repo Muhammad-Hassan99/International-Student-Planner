@@ -24,26 +24,12 @@ function PlanContent() {
     preferred_university: "Any",
   });
 
-  const [countries, setCountries] = useState<string[]>([]);
-  const [cities, setCities] = useState<string[]>([]);
-  const [universities, setUniversities] = useState<string[]>([]);
-
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
   const [expandedUni, setExpandedUni] = useState<number | null>(null);
-
-  useEffect(() => {
-    // Fetch all countries on load
-    fetch(`${API_BASE_URL}/countries`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.countries) setCountries(data.countries);
-      })
-      .catch(err => console.error("Error loading countries", err));
-  }, []);
 
   const handleCountryChange = async (selectedCountry: string, defaultUniversity: string = "Any") => {
     let newBudget = "";
@@ -59,30 +45,13 @@ function PlanContent() {
       budget: newBudget
     }));
 
-    setCities([]);
-    // Only reset universities if not prepopulating
-    if (defaultUniversity === "Any") {
-      setUniversities([]);
-    }
-
     if (selectedCountry) {
       setLoadingConfig(true);
       try {
-        const [citiesRes, unisRes] = await Promise.all([
+        await Promise.all([
           fetch(`${API_BASE_URL}/cities/${selectedCountry}`),
           fetch(`${API_BASE_URL}/universities/${selectedCountry}`)
         ]);
-        const citiesData = await citiesRes.json();
-        const unisData = await unisRes.json();
-
-        if (citiesData.cities) setCities(citiesData.cities);
-        if (unisData.universities) {
-          setUniversities(unisData.universities);
-          // If the defaultUniversity isn't in the fetched list but was provided via URL, add it so the dropdown is valid.
-          if (defaultUniversity !== "Any" && !unisData.universities.includes(defaultUniversity)) {
-            setUniversities((prev) => [defaultUniversity, ...prev]);
-          }
-        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -181,7 +150,7 @@ function PlanContent() {
             <div className="absolute -inset-4 bg-primary/20 rounded-3xl blur-2xl group-hover:bg-primary/30 transition-all"></div>
             <div className="relative rounded-2xl overflow-hidden shadow-2xl">
               <img
-                className="w-full h-[400px] object-cover"
+                className="h-100 w-full object-cover"
                 alt="Group of diverse international students"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHSmB9ezB4cUXDNcWKhETjg7U4bA0nBgjD58jcA6t1A31fe6wuh-mOQZEkNVk1VuAOPQKXt000rOjIBMAY1WdnBNj2xw4AVZME4ELiKAP0o6Z5j2X4FUv7m_evN_5fjEyRxsdccrpBScDyon7wmx06y3NKh1zFV97Slvrwt3ppMQJHOP_B7w3oSa5lvkP42z12dTIq7m7xUwRo-rOdKViWI72EkIq3tG-z16BqlCuS0KXl1mHx_DmUfFWiVOq0X1pHoayFHqmF3hI"
               />
@@ -318,7 +287,7 @@ function PlanContent() {
             Your Personalized Education Roadmap
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid min-w-0 gap-8 md:grid-cols-2">
 
             {/* Massive Primary University Spotlight */}
             {plan.universities && plan.universities.length > 0 && (() => {
@@ -328,11 +297,11 @@ function PlanContent() {
                   <div className="absolute top-0 right-0 p-8 opacity-5">
                     <span className="material-symbols-outlined text-[200px]">school</span>
                   </div>
-                  <div className="relative p-8 md:p-10 bg-gradient-to-br from-primary/5 via-transparent to-transparent">
+                  <div className="relative p-8 md:p-10 bg-linear-to-br from-primary/5 via-transparent to-transparent">
                     <span className="inline-block mb-4 px-3 py-1 text-xs font-bold tracking-widest uppercase bg-primary text-white rounded-full shadow-md">
                       Top Recommendation
                     </span>
-                    <h3 className="text-3xl md:text-4xl font-black mb-2 text-slate-800 dark:text-white leading-tight">
+                    <h3 className="wrap-break-word text-2xl font-black leading-tight text-slate-800 dark:text-white mb-2 sm:text-3xl md:text-4xl">
                       {primaryUni.name}
                     </h3>
 
@@ -356,11 +325,11 @@ function PlanContent() {
                             Admissions Timeline
                           </h4>
                           <div className="flex flex-col gap-3">
-                            <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                            <div className="flex flex-wrap justify-between items-center gap-2 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
                               <span className="font-bold text-blue-600 dark:text-blue-400">Opens</span>
                               <span className="font-black text-slate-800 dark:text-white">{primaryUni.admissions_start_date}</span>
                             </div>
-                            <div className="flex justify-between items-center bg-rose-50 dark:bg-rose-900/20 px-4 py-3 rounded-xl border border-rose-100 dark:border-rose-800/30">
+                            <div className="flex flex-wrap justify-between items-center gap-2 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 rounded-xl border border-rose-100 dark:border-rose-800/30">
                               <span className="font-bold text-rose-600 dark:text-rose-400">Deadlines</span>
                               <span className="font-black text-slate-800 dark:text-white">{primaryUni.admissions_closing_date}</span>
                             </div>
@@ -433,7 +402,7 @@ function PlanContent() {
 
             {/* Blocked Account Standalone Section */}
             {plan.block_account_details && (
-              <div className={`md:col-span-2 p-8 rounded-3xl border shadow-lg relative overflow-hidden ${plan.block_account_details.is_required ? 'bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-800 border-amber-200 dark:border-amber-800/50' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+              <div className={`md:col-span-2 p-8 rounded-3xl border shadow-lg relative overflow-hidden ${plan.block_account_details.is_required ? 'bg-linear-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-800 border-amber-200 dark:border-amber-800/50' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
                 <div className="absolute -right-10 -bottom-10 opacity-10">
                   <span className="material-symbols-outlined text-[250px] text-amber-500">lock</span>
                 </div>
@@ -461,13 +430,13 @@ function PlanContent() {
                         <span className="material-symbols-outlined">menu_book</span>
                         How to Open & Secure Your Account
                       </h4>
-                      <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-amber-200 before:to-transparent dark:before:from-amber-800">
+                      <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-amber-200 before:to-transparent dark:before:from-amber-800">
                         {plan.block_account_details.steps_to_open.map((step: string, idx: number) => (
                           <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                             <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 bg-amber-500 text-white shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                               <span className="text-xs font-bold">{idx + 1}</span>
                             </div>
-                            <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-2rem)] p-4 rounded-xl border border-white dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow">
+                            <div className="min-w-0 w-[calc(100%-2.5rem)] p-4 rounded-xl border border-white dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow md:w-[calc(50%-2rem)]">
                               <div className="font-bold text-slate-700 dark:text-slate-200">{step}</div>
                             </div>
                           </div>
@@ -580,7 +549,7 @@ function PlanContent() {
                   <span className="material-symbols-outlined text-primary">app_registration</span>
                   General Platform Guide
                 </h3>
-                <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-700 before:to-transparent">
+                <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-700 before:to-transparent">
                   {plan.university_application_steps.map((step: string, idx: number) => (
                     <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-5 h-5 rounded-full border border-white dark:border-slate-900 bg-primary text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
@@ -607,7 +576,7 @@ function PlanContent() {
                       <h4 className="font-bold text-sm leading-tight mb-2">{schol.name}</h4>
                       <a href={schol.link} target="_blank" rel="noreferrer" className="text-xs text-primary font-bold hover:underline bg-primary/10 px-3 py-1.5 rounded-lg inline-block">View Details</a>
                     </div>
-                    <span className="font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded text-sm whitespace-nowrap">
+                      <span className="wrap-break-word font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded text-sm">
                       {schol.amount}
                     </span>
                   </div>
@@ -625,7 +594,7 @@ function PlanContent() {
                   <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <div className="flex justify-between items-start mb-3">
                       <h4 className="font-bold text-base leading-tight">{acc.type}</h4>
-                      <span className="font-black whitespace-nowrap ml-4 text-primary bg-primary/10 px-2 py-1.5 rounded-lg text-sm">
+                      <span className="ml-4 wrap-break-word text-right font-black text-primary bg-primary/10 px-2 py-1.5 rounded-lg text-sm">
                         {acc.estimated_cost}
                       </span>
                     </div>
@@ -658,13 +627,13 @@ function PlanContent() {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div>
                     <h4 className="text-xs uppercase tracking-widest font-black text-slate-500 mb-5">Key Application Steps</h4>
-                    <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-700 before:to-transparent">
+                    <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2.5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-linear-to-b before:from-transparent before:via-slate-200 dark:before:via-slate-700 before:to-transparent">
                       {plan.visa_process.steps.map((step: string, idx: number) => (
                         <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                           <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white dark:border-slate-900 bg-primary text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
                             <span className="text-[10px] font-bold">{idx + 1}</span>
                           </div>
-                          <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-2rem)] p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-sm">
+                          <div className="min-w-0 w-[calc(100%-2.5rem)] p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-sm md:w-[calc(50%-2rem)]">
                             <div className="font-bold text-sm text-slate-700 dark:text-slate-300">{step}</div>
                           </div>
                         </div>

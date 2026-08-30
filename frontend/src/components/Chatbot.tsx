@@ -4,8 +4,17 @@ import { useState, useRef, useEffect } from "react";
 import { getAuthHeaders, getAuthToken } from "@/lib/api";
 
 type Message = {
-    role: "user" | "model" | "assistant";
+    role: "user" | "model" | "assistant" | "tool";
     content: string;
+    toolState?: "input-streaming" | "input-available" | "output-available" | "output-error";
+    toolData?: {
+        university: string;
+        country: string;
+        location: string;
+        programs: string[];
+        estimatedTuition: string;
+    };
+    toolError?: string;
 };
 
 type SpeechRecognitionLike = {
@@ -18,6 +27,40 @@ type SpeechRecognitionLike = {
     onerror: ((event: { error: string }) => void) | null;
     onend: (() => void) | null;
 };
+
+function UniversityToolCard({ message }: { message: Message }) {
+    if (message.toolState === "output-available" && message.toolData) {
+        return (
+            <div className="max-w-full self-start rounded-2xl rounded-tl-sm border border-indigo-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:max-w-[92%]">
+                <div className="flex items-center gap-2 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                    <span className="material-symbols-outlined text-base">account_balance</span>
+                    University Information
+                </div>
+                <div className="space-y-3 p-4 text-sm">
+                    <div>
+                        <h4 className="wrap-break-word text-base font-bold text-slate-900 dark:text-white">{message.toolData.university}</h4>
+                        <p className="mt-1 flex items-start gap-1.5 text-slate-500 dark:text-slate-400"><span className="material-symbols-outlined text-base">public</span>{message.toolData.country}</p>
+                    </div>
+                    <div className="flex items-start gap-2 text-slate-600 dark:text-slate-300"><span className="material-symbols-outlined text-base text-indigo-500">location_on</span><span className="wrap-break-word">{message.toolData.location}</span></div>
+                    <div>
+                        <p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-400">Programs</p>
+                        <p className="wrap-break-word text-slate-600 dark:text-slate-300">{message.toolData.programs.join(", ")}</p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                        <p className="text-xs font-bold uppercase tracking-wide opacity-75">Estimated tuition</p>
+                        <p className="wrap-break-word font-semibold">{message.toolData.estimatedTuition}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (message.toolState === "output-error") {
+        return <div className="max-w-[92%] self-start rounded-2xl rounded-tl-sm border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"><div className="flex items-center gap-2 font-bold"><span className="material-symbols-outlined text-base">error</span>University information unavailable</div><p className="mt-1 wrap-break-word">{message.toolError || "The university details could not be loaded."}</p></div>;
+    }
+
+    return <div className="max-w-[92%] self-start rounded-2xl rounded-tl-sm border border-indigo-100 bg-indigo-50 p-3 text-sm text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300"><span className="flex items-center gap-2"><span className="material-symbols-outlined animate-spin text-base">progress_activity</span>{message.toolState === "input-available" ? "Looking up university information..." : "Preparing university information..."}</span></div>;
+}
 
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false);
@@ -213,21 +256,39 @@ export default function Chatbot() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let reply = "";
+            let pending = "";
+            const handleEvent = (event: { type?: string; text?: string; state?: Message["toolState"]; result?: Message["toolData"]; error?: string }) => {
+                if (event.type === "text" && event.text) {
+                    reply += event.text;
+                    setStreamingStarted(true);
+                    setMessages((prev) => {
+                        const next = [...prev];
+                        const last = next.length - 1;
+                        if (next[last]?.role === "assistant") next[last] = { ...next[last], content: reply };
+                        else next.push({ role: "assistant", content: reply });
+                        return next;
+                    });
+                }
+                if (event.type === "tool" && event.state) {
+                    setMessages((prev) => {
+                        const withoutTool = prev.filter((message) => message.role !== "tool");
+                        return [...withoutTool, { role: "tool", content: "", toolState: event.state, toolData: event.result, toolError: event.error }];
+                    });
+                }
+            };
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                reply += decoder.decode(value, { stream: true });
-                setStreamingStarted(true);
-                setMessages((prev) => {
-                    const next = [...prev];
-                    const last = next.length - 1;
-                    if (next[last]?.role === "assistant") {
-                        next[last] = { ...next[last], content: reply };
-                    } else {
-                        next.push({ role: "assistant", content: reply });
-                    }
-                    return next;
-                });
+                pending += decoder.decode(value, { stream: true });
+                const lines = pending.split("\n");
+                pending = lines.pop() || "";
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try { handleEvent(JSON.parse(line)); } catch { /* Ignore incomplete wire events. */ }
+                }
+            }
+            if (pending.trim()) {
+                try { handleEvent(JSON.parse(pending)); } catch { /* Ignore incomplete wire events. */ }
             }
             if (reply) speakText(reply);
         } catch (error: unknown) {
@@ -252,12 +313,12 @@ export default function Chatbot() {
     };
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div className="fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col items-end sm:bottom-6 sm:right-6">
             {/* Chat Window */}
             {isOpen && (
-                <div className="mb-4 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-[500px] animate-in slide-in-from-bottom-5">
+                <div className="mb-4 flex h-[min(82dvh,720px)] max-h-[calc(100dvh-5rem)] w-[min(28rem,calc(100vw-2rem))] min-w-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800 animate-in slide-in-from-bottom-5">
                     {/* Header */}
-                    <div className="bg-primary text-white p-4 flex justify-between items-center">
+                    <div className="flex shrink-0 items-center justify-between bg-primary p-4 text-white">
                         <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined">smart_toy</span>
                             <h3 className="font-bold">AI Voice Counselor</h3>
@@ -275,7 +336,7 @@ export default function Chatbot() {
                     </div>
 
                     {/* Settings / Filters */}
-                    <div className="bg-slate-100 dark:bg-slate-900/80 px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex gap-2 shadow-inner z-10">
+                    <div className="z-10 flex shrink-0 gap-2 border-b border-slate-200 bg-slate-100 px-4 py-2 shadow-inner dark:border-slate-700 dark:bg-slate-900/80">
                         <select
                             value={language}
                             onChange={e => setLanguage(e.target.value)}
@@ -300,8 +361,10 @@ export default function Chatbot() {
                     </div>
 
                     {/* Messages */}
-                    <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="relative flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50">
-                        {messages.map((msg, i) => (
+                    <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50">
+                        {messages.map((msg, i) => msg.role === "tool" ? (
+                            <UniversityToolCard key={i} message={msg} />
+                        ) : (
                             <div key={i} className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === "user"
                                 ? "bg-primary text-white self-end rounded-tr-sm"
                                 : "bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 self-start rounded-tl-sm shadow-sm"
@@ -325,7 +388,7 @@ export default function Chatbot() {
                     </div>
 
                     {/* Input */}
-                    <div className="p-3 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex gap-2 items-center">
+                    <div className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
                         <button
                             onClick={toggleRecording}
                             className={`p-2 rounded-xl flex items-center justify-center w-10 h-10 shrink-0 transition-colors ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/30' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-primary hover:bg-primary/10'}`}
@@ -339,7 +402,7 @@ export default function Chatbot() {
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleSend()}
                             placeholder="Ask or speak..."
-                            className="flex-1 bg-slate-100 dark:bg-slate-900 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            className="min-w-0 flex-1 rounded-xl bg-slate-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:bg-slate-900"
                             disabled={loading}
                         />
                         <button

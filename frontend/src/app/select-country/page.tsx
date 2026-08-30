@@ -5,22 +5,22 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 
+const FALLBACK_COUNTRIES = [
+    "United States", "United Kingdom", "Canada", "Australia", "Germany",
+    "France", "Netherlands", "Sweden", "Switzerland", "New Zealand",
+    "Ireland", "Italy", "Spain", "Singapore", "Japan", "South Korea",
+    "China", "India", "Brazil", "Mexico", "United Arab Emirates",
+    "Malaysia", "Finland", "Norway", "Denmark", "Austria", "Belgium",
+    "Poland", "Portugal", "Russia", "South Africa", "Turkey", "Argentina",
+    "Chile", "Colombia", "Egypt", "Saudi Arabia", "Thailand", "Vietnam"
+].sort();
+
 function CountryContent() {
     const searchParams = useSearchParams();
     const returnTo = searchParams.get("returnTo") || "/plan";
     const [countries, setCountries] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-
-    const FALLBACK_COUNTRIES = [
-        "United States", "United Kingdom", "Canada", "Australia", "Germany",
-        "France", "Netherlands", "Sweden", "Switzerland", "New Zealand",
-        "Ireland", "Italy", "Spain", "Singapore", "Japan", "South Korea",
-        "China", "India", "Brazil", "Mexico", "United Arab Emirates",
-        "Malaysia", "Finland", "Norway", "Denmark", "Austria", "Belgium",
-        "Poland", "Portugal", "Russia", "South Africa", "Turkey", "Argentina",
-        "Chile", "Colombia", "Egypt", "Saudi Arabia", "Thailand", "Vietnam"
-    ].sort();
 
     useEffect(() => {
         fetch(`${API_BASE_URL}/countries`)

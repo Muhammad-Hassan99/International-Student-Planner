@@ -8,6 +8,40 @@
 }
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  li,
+  a,
+  span,
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+
   body {
     @apply bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100;
   }

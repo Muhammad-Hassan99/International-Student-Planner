@@ -61,8 +61,6 @@ const countryData: Record<string, any> = {
     }
 };
 
-const countries = Object.keys(countryData);
-
 function SearchableSelect({ label, value, onChange, options, disabledOption }: { label: string, value: string, onChange: (val: string) => void, options: string[], disabledOption: string }) {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -209,10 +207,10 @@ export default function CompareCountries() {
 
             {showComparison && (
                 <div className="bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="grid grid-cols-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                    <div className="hidden grid-cols-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 sm:grid">
                         <div className="p-6"></div>
                         <div className="p-6 text-center border-l border-slate-200 dark:border-slate-700 relative overflow-hidden group">
-                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="absolute inset-0 bg-linear-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <span className="text-6xl mb-4 block relative z-10 scale-100 group-hover:scale-110 transition-transform duration-300">{dataA.flag}</span>
                             <h2 className="text-2xl font-black relative z-10">{countryA}</h2>
                             <div className="inline-flex items-center gap-1 mt-3 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm relative z-10">
@@ -220,7 +218,7 @@ export default function CompareCountries() {
                             </div>
                         </div>
                         <div className="p-6 text-center border-l border-slate-200 dark:border-slate-700 relative overflow-hidden group">
-                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <div className="absolute inset-0 bg-linear-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <span className="text-6xl mb-4 block relative z-10 scale-100 group-hover:scale-110 transition-transform duration-300">{dataB.flag}</span>
                             <h2 className="text-2xl font-black relative z-10">{countryB}</h2>
                             <div className="inline-flex items-center gap-1 mt-3 bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 px-4 py-1.5 rounded-full text-sm font-bold shadow-sm relative z-10">
@@ -237,7 +235,7 @@ export default function CompareCountries() {
                         { label: "Part-Time Work Rules", key: "work", icon: "work" },
                         { label: "Top Study Fields", key: "topFields", icon: "explore" },
                     ].map((row, i) => (
-                        <div key={row.key} className={`grid grid-cols-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group ${i !== 5 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
+                        <div key={row.key} className={`hidden grid-cols-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group sm:grid ${i !== 5 ? 'border-b border-slate-100 dark:border-slate-800' : ''}`}>
                             <div className="p-6 flex items-center gap-4 font-bold text-slate-700 dark:text-slate-300">
                                 <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/50 transition-colors">
                                     <span className="material-symbols-outlined text-indigo-500">{row.icon}</span>
@@ -252,6 +250,26 @@ export default function CompareCountries() {
                             </div>
                         </div>
                     ))}
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
+                        {[...[
+                            { label: "Annual Tuition", key: "tuition", icon: "school" },
+                            { label: "Living Costs/Yr", key: "living", icon: "payments" },
+                            { label: "Post-Study Work Visa", key: "psw", icon: "badge" },
+                            { label: "PR/Immigration Ease", key: "pr", icon: "gavel" },
+                            { label: "Part-Time Work Rules", key: "work", icon: "work" },
+                            { label: "Top Study Fields", key: "topFields", icon: "explore" },
+                        ]].map((row) => (
+                            <div key={row.key} className="p-4">
+                                <div className="mb-3 flex items-center gap-2 font-bold text-slate-700 dark:text-slate-300">
+                                    <span className="material-symbols-outlined text-indigo-500">{row.icon}</span>{row.label}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div className="min-w-0 rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="mb-1 block text-xs font-bold text-slate-400">{countryA}</span><span className="wrap-break-word text-slate-600 dark:text-slate-400">{dataA[row.key as keyof typeof dataA]}</span></div>
+                                    <div className="min-w-0 rounded-lg bg-slate-50 p-3 dark:bg-slate-900"><span className="mb-1 block text-xs font-bold text-slate-400">{countryB}</span><span className="wrap-break-word text-slate-600 dark:text-slate-400">{dataB[row.key as keyof typeof dataB]}</span></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

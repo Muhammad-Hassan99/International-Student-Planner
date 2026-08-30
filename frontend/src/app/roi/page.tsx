@@ -25,9 +25,9 @@ export default function ROICalculator() {
                 </p>
             </div>
 
-            <div className="grid md:grid-cols-5 gap-8">
+            <div className="grid min-w-0 gap-6 md:grid-cols-5 md:gap-8">
                 {/* Sliders Input */}
-                <div className="md:col-span-3 bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-700">
+                <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-800 sm:p-8 md:col-span-3">
                     <h2 className="text-2xl font-bold mb-8 flex items-center gap-2">
                         <span className="material-symbols-outlined text-emerald-500">tune</span>
                         Your Variables
@@ -35,7 +35,7 @@ export default function ROICalculator() {
 
                     <div className="space-y-8">
                         <div>
-                            <div className="flex justify-between mb-2">
+                            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                                 <label className="font-bold text-slate-700 dark:text-slate-300">Annual Tuition Fee ($)</label>
                                 <span className="font-bold text-emerald-600">${tuition.toLocaleString()}</span>
                             </div>
@@ -78,7 +78,7 @@ export default function ROICalculator() {
                 </div>
 
                 {/* Results Panel */}
-                <div className="md:col-span-2 bg-slate-900 text-white p-8 rounded-3xl shadow-xl flex flex-col justify-center relative overflow-hidden">
+                <div className="relative flex min-w-0 flex-col justify-center overflow-hidden rounded-3xl bg-slate-900 p-5 text-white shadow-xl sm:p-8 md:col-span-2">
                     <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-emerald-500 rounded-full blur-3xl opacity-20"></div>
 
                     <h2 className="text-2xl font-bold mb-8 relative z-10 flex items-center gap-2">
@@ -99,7 +99,7 @@ export default function ROICalculator() {
 
                         <div className="mt-8 pt-8 border-t border-white/20">
                             <p className="text-sm text-slate-400 uppercase tracking-widest font-bold mb-2">Break-even / Payback Time</p>
-                            <p className="text-6xl font-black text-white">{paybackYears} <span className="text-2xl text-slate-400">Yrs</span></p>
+                            <p className="text-4xl font-black text-white sm:text-6xl">{paybackYears} <span className="text-xl text-slate-400 sm:text-2xl">Yrs</span></p>
                             <p className="text-sm mt-3 text-emerald-400 font-semibold">After {paybackYears} years of working, your degree is entirely paid off and pure profit.</p>
                         </div>
                     </div>

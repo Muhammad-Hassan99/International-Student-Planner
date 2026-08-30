@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Gemini Tool Calling
+
+The chat API exposes one server-side Gemini tool:
+
+- **Tool name:** `getUniversityInfo`
+- **Input schema:** `{ country: string, university: string }`
+- **Return shape:** `{ university: string, country: string, location: string, programs: string[], estimatedTuition: string }`
+
+The tool validates inputs with Zod and returns structured information for the chatbot's University Information Card. Tool progress, success, and failure states are streamed to the existing chatbot UI.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

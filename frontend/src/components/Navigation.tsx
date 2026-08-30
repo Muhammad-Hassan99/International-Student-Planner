@@ -11,6 +11,7 @@ export default function Navigation() {
     const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isMounted, setIsMounted] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     const syncAuthState = async () => {
         const currentToken = getAuthToken();
@@ -56,6 +57,10 @@ export default function Navigation() {
         };
     }, []);
 
+    useEffect(() => {
+        setIsMenuOpen(false);
+    }, [pathname]);
+
     const handleLogout = () => {
         clearAuthSession();
         setToken(null);
@@ -99,7 +104,7 @@ export default function Navigation() {
                         ))}
                     </nav>
 
-                    <div className="flex items-center gap-3 justify-end">
+                    <div className="hidden md:flex items-center gap-3 justify-end">
                         {!isMounted ? (
                             <div className="w-24 h-9" />
                         ) : token ? (
@@ -138,7 +143,34 @@ export default function Navigation() {
                             </div>
                         )}
                     </div>
+
+                    <button type="button" onClick={() => setIsMenuOpen((open) => !open)} className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800" aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-expanded={isMenuOpen}>
+                        <span className="material-symbols-outlined">{isMenuOpen ? "close" : "menu"}</span>
+                    </button>
                 </div>
+
+                {isMenuOpen && (
+                    <div className="md:hidden border-t border-slate-200 dark:border-slate-800 py-3">
+                        <nav className="flex flex-col gap-1" aria-label="Mobile navigation">
+                            {navLinks.map((link) => (
+                                <Link key={link.name} href={link.href} className={`rounded-lg px-3 py-3 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 ${pathname === link.href ? "text-primary" : "text-slate-700 dark:text-slate-200"}`}>
+                                    {link.name}
+                                </Link>
+                            ))}
+                            {!isMounted ? null : token ? (
+                                <button onClick={handleLogout} className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-3 text-left text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">
+                                    <span className="material-symbols-outlined text-base">logout</span>
+                                    Log Out
+                                </button>
+                            ) : (
+                                <div className="mt-2 flex gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                                    <Link href="/login" className="flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Log In</Link>
+                                    <Link href="/signup" className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-center text-sm font-bold text-white">Sign Up</Link>
+                                </div>
+                            )}
+                        </nav>
+                    </div>
+                )}
             </div>
         </header>
     );

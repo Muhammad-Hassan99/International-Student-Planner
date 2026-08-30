@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 interface Task {
   id: string;
@@ -24,22 +23,6 @@ export default function TrackerPage() {
     setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
   };
 
-  const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'done': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
-      case 'in-progress': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800';
-      default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'done': return 'check_circle';
-      case 'in-progress': return 'pending';
-      default: return 'radio_button_unchecked';
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto space-y-10">
@@ -47,7 +30,7 @@ export default function TrackerPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+            <h1 className="flex min-w-0 items-center gap-3 text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
               <span className="material-symbols-outlined text-primary text-4xl">task</span>
               Application Tracker
             </h1>
@@ -55,9 +38,9 @@ export default function TrackerPage() {
               Keep your documents and deadlines organized. Move tasks through the pipeline to track your journey to studying abroad.
             </p>
           </div>
-          <div className="flex flex-col items-end">
+          <div className="flex w-full flex-col items-start md:w-auto md:items-end">
             <span className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Overall Progress</span>
-            <div className="w-48 h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-3 w-full max-w-48 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
               <div 
                 className="h-full bg-primary rounded-full transition-all duration-500"
                 style={{ width: `${(tasks.filter(t => t.status === 'done').length / tasks.length) * 100}%` }}
@@ -73,7 +56,7 @@ export default function TrackerPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* To Do Column */}
-          <div className="bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+          <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-100/50 p-4 dark:border-slate-700 dark:bg-slate-800/50 sm:p-6">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-3 h-3 rounded-full bg-slate-400"></div>
               <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200">To Do</h2>
@@ -101,7 +84,7 @@ export default function TrackerPage() {
           </div>
 
           {/* In Progress Column */}
-          <div className="bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-6 border border-blue-100 dark:border-blue-900/50">
+          <div className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 dark:border-blue-900/50 dark:bg-blue-900/10 sm:p-6">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-3 h-3 rounded-full bg-blue-500"></div>
               <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200">In Progress</h2>
@@ -129,7 +112,7 @@ export default function TrackerPage() {
           </div>
 
           {/* Done Column */}
-          <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl p-6 border border-emerald-100 dark:border-emerald-900/50">
+          <div className="min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/10 sm:p-6">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
               <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200">Completed</h2>

@@ -65,7 +65,7 @@ function UniversitiesContent() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12">
             <div className="text-center mb-12">
                 <span className="inline-block px-4 py-1.5 mb-4 text-xs font-bold tracking-widest uppercase bg-primary/10 text-primary rounded-full">
                     Step 2: University
@@ -119,7 +119,7 @@ function UniversitiesContent() {
                                 </span>
                             </div>
 
-                            <div>
+                            <div className="min-w-0">
                                 <h3 className="font-bold text-lg mb-1 text-primary leading-tight">
                                     Help me decide
                                 </h3>
@@ -147,8 +147,8 @@ function UniversitiesContent() {
                                         </span>
                                     </div>
 
-                                    <div>
-                                        <h3 className="font-bold text-lg mb-1 group-hover:text-primary transition-colors leading-tight">
+                                    <div className="min-w-0">
+                                        <h3 className="break-words text-lg font-bold leading-tight transition-colors group-hover:text-primary mb-1">
                                             {uni}
                                         </h3>
 
