@@ -16,6 +16,8 @@ type Message = {
     };
     toolError?: string;
 };
+type DebugFailure = "" | "api" | "stream" | "rate-limit";
+type FailedRequest = { content: string; history: Message[] };
 
 type SpeechRecognitionLike = {
     continuous: boolean;
@@ -64,10 +66,12 @@ function UniversityToolCard({ message }: { message: Message }) {
 
 export default function Chatbot() {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([
-        { role: "assistant", content: "Hi! I'm your AI counselor. Ask me anything about universities, visas, or budget planning!" }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
+    const [inputError, setInputError] = useState("");
+    const [chatError, setChatError] = useState<{ message: string; retryable: boolean } | null>(null);
+    const [failedRequest, setFailedRequest] = useState<FailedRequest | null>(null);
+    const [debugFailure, setDebugFailure] = useState<DebugFailure>("");
     const [loading, setLoading] = useState(false);
     const [streamingStarted, setStreamingStarted] = useState(false);
     const [isNearBottom, setIsNearBottom] = useState(true);
@@ -214,12 +218,17 @@ export default function Chatbot() {
         if (isOpen && isNearBottom) setTimeout(() => scrollToBottom("auto"), 0);
     }, [messages, isOpen, isNearBottom]);
 
-    const handleSend = async () => {
-        if (!input.trim() || loading) return;
+    const sendMessage = async (content: string, retryRequest?: FailedRequest) => {
+        if (loading) return;
 
-        const userMsg: Message = { role: "user", content: input };
-        setMessages((prev) => [...prev, userMsg]);
+        const trimmedContent = content.trim();
+        if (!trimmedContent) return;
+        const userMsg: Message = { role: "user", content: trimmedContent };
+        const requestHistory = retryRequest?.history || [...messages, userMsg];
+        if (!retryRequest) setMessages((prev) => [...prev, userMsg]);
         setInput("");
+        setInputError("");
+        setChatError(null);
         setLoading(true);
         setStreamingStarted(false);
         const abortController = new AbortController();
@@ -234,7 +243,8 @@ export default function Chatbot() {
         }
 
         try {
-            const history = [...messages, userMsg].filter(m => m.role !== "assistant" || m.content !== "Hi! I'm your AI counselor. Ask me anything about universities, visas, or budget planning!");
+            const history = requestHistory.filter(m => m.role === "user" || m.role === "assistant");
+            if (!retryRequest) setFailedRequest({ content: trimmedContent, history });
 
             const response = await fetch("/api/chat", {
                 method: "POST",
@@ -242,7 +252,7 @@ export default function Chatbot() {
                     "Content-Type": "application/json",
                     ...getAuthHeaders()
                 },
-                body: JSON.stringify({ history, language, mode }),
+                body: JSON.stringify({ history, language, mode, ...(debugFailure ? { debugFailure } : {}) }),
                 signal: abortController.signal
             });
 
@@ -250,14 +260,17 @@ export default function Chatbot() {
                 if (response.status === 401) {
                     throw new Error("unauthorized");
                 }
-                throw new Error("Network response was not ok");
+                if (response.status === 429) throw new Error("rate-limit");
+                const errorBody = await response.json().catch(() => null);
+                throw new Error(errorBody?.error || "The AI service is temporarily unavailable.");
             }
             if (!response.body) throw new Error("stream_unavailable");
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let reply = "";
             let pending = "";
-            const handleEvent = (event: { type?: string; text?: string; state?: Message["toolState"]; result?: Message["toolData"]; error?: string }) => {
+            let streamFailed = false;
+            const handleEvent = (event: { type?: string; text?: string; state?: Message["toolState"]; result?: Message["toolData"]; error?: string; code?: string; message?: string; retryable?: boolean }) => {
                 if (event.type === "text" && event.text) {
                     reply += event.text;
                     setStreamingStarted(true);
@@ -275,6 +288,10 @@ export default function Chatbot() {
                         return [...withoutTool, { role: "tool", content: "", toolState: event.state, toolData: event.result, toolError: event.error }];
                     });
                 }
+                if (event.type === "error") {
+                    streamFailed = true;
+                    setChatError({ message: event.message || "The response was interrupted. Your partial answer is preserved.", retryable: event.retryable !== false });
+                }
             };
             while (true) {
                 const { done, value } = await reader.read();
@@ -291,18 +308,35 @@ export default function Chatbot() {
                 try { handleEvent(JSON.parse(pending)); } catch { /* Ignore incomplete wire events. */ }
             }
             if (reply) speakText(reply);
+            else if (!streamFailed) {
+                setMessages((prev) => [...prev, { role: "assistant", content: "I couldn't find a response for that request. Please try again." }]);
+            }
         } catch (error: unknown) {
             if (error instanceof DOMException && error.name === "AbortError") return;
             if (error instanceof Error && error.message === "unauthorized") {
                 setMessages((prev) => [...prev, { role: "assistant", content: "Please log in to use the AI chat." }]);
+            } else if (error instanceof Error && error.message === "rate-limit") {
+                setChatError({ message: "You have reached the request limit. Please wait a moment and retry.", retryable: true });
             } else {
-                setMessages((prev) => [...prev, { role: "assistant", content: "Oops, I had trouble connecting to the server. Try again!" }]);
+                setChatError({ message: error instanceof Error ? error.message : "The AI service could not complete this request.", retryable: true });
             }
         } finally {
             setLoading(false);
             setStreamingStarted(false);
             abortControllerRef.current = null;
         }
+    };
+
+    const handleSend = () => {
+        if (!input.trim()) {
+            setInputError("Enter a question to get started.");
+            return;
+        }
+        void sendMessage(input);
+    };
+
+    const handleRetry = () => {
+        if (failedRequest) void sendMessage(failedRequest.content, failedRequest);
     };
 
     const handleStop = () => {
@@ -358,10 +392,29 @@ export default function Chatbot() {
                             <option value="Motivational Mode">Motivational</option>
                             <option value="Quick Summary Mode">Summary Mode</option>
                         </select>
+                        {process.env.NODE_ENV === "development" && (
+                            <select value={debugFailure} onChange={(event) => setDebugFailure(event.target.value as DebugFailure)} aria-label="Chat failure simulation" className="max-w-24 rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                                <option value="">Test</option>
+                                <option value="api">API fail</option>
+                                <option value="stream">Stream fail</option>
+                                <option value="rate-limit">429 limit</option>
+                            </select>
+                        )}
                     </div>
 
                     {/* Messages */}
                     <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900/50">
+                        {messages.length === 0 && !loading && (
+                            <div className="my-auto flex flex-col items-center px-2 py-6 text-center">
+                                <span className="material-symbols-outlined mb-2 text-3xl text-primary">waving_hand</span>
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">What can I help you plan?</p>
+                                <div className="mt-4 grid w-full gap-2 text-left">
+                                    {["Tell me about University of Toronto in Canada", "What documents do I need for a student visa?", "Compare study costs in Germany and Canada"].map((prompt) => (
+                                        <button key={prompt} onClick={() => void sendMessage(prompt)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-600 hover:border-primary hover:text-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">{prompt}</button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                         {messages.map((msg, i) => msg.role === "tool" ? (
                             <UniversityToolCard key={i} message={msg} />
                         ) : (
@@ -377,6 +430,13 @@ export default function Chatbot() {
                                 <span className="animate-bounce">●</span>
                                 <span className="animate-bounce delay-100">●</span>
                                 <span className="animate-bounce delay-200">●</span>
+                            </div>
+                        )}
+                        {chatError && (
+                            <div className="self-start rounded-2xl rounded-tl-sm border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                                <div className="flex items-center gap-2 font-bold"><span className="material-symbols-outlined text-base">cloud_off</span>Something went wrong</div>
+                                <p className="mt-1 wrap-break-word">{chatError.message}</p>
+                                {chatError.retryable && failedRequest && <button onClick={handleRetry} disabled={loading} className="mt-3 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50">Retry</button>}
                             </div>
                         )}
                         <div ref={messagesEndRef} />
@@ -399,7 +459,7 @@ export default function Chatbot() {
                         <input
                             type="text"
                             value={input}
-                            onChange={(e) => setInput(e.target.value)}
+                            onChange={(e) => { setInput(e.target.value); setInputError(""); }}
                             onKeyDown={(e) => e.key === "Enter" && handleSend()}
                             placeholder="Ask or speak..."
                             className="min-w-0 flex-1 rounded-xl bg-slate-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 dark:bg-slate-900"
@@ -413,6 +473,7 @@ export default function Chatbot() {
                             <span className="material-symbols-outlined text-sm">{loading ? "stop" : "send"}</span>
                         </button>
                     </div>
+                    {inputError && <p className="shrink-0 border-t border-rose-100 bg-rose-50 px-3 py-1 text-xs text-rose-600 dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-300">{inputError}</p>}
                 </div>
             )}
 

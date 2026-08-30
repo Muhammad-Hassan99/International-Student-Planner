@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 type IncomingMessage = { role: "user" | "assistant"; content: string };
 type ChatMessage = { role: "user" | "model"; parts: [{ text: string }] };
 type ToolCall = { name: string; args: Record<string, unknown> };
+type DebugFailure = "api" | "stream" | "rate-limit";
 
 const encoder = new TextEncoder();
 
@@ -19,10 +20,28 @@ function requestsUniversityInfo(message: string): boolean {
 export async function POST(request: NextRequest) {
     const token = request.headers.get("authorization");
     if (!token) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const body = await request.json().catch(() => ({}));
+    const requestedDebugFailure = body?.debugFailure as DebugFailure | undefined;
+    const debugFailure: DebugFailure | undefined = process.env.NODE_ENV === "development" ? requestedDebugFailure : undefined;
+    if (debugFailure === "rate-limit") {
+        return Response.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
+    }
+    if (debugFailure === "api") {
+        return Response.json({ error: "Simulated API failure." }, { status: 503 });
+    }
+    if (debugFailure === "stream") {
+        const simulatedStream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(encoder.encode(`${JSON.stringify({ type: "text", text: "Here is a partial response before the simulated interruption..." })}\n`));
+                controller.enqueue(encoder.encode(`${JSON.stringify({ type: "error", code: "stream-failure", message: "The response was interrupted. Your partial answer is preserved.", retryable: true })}\n`));
+                controller.close();
+            },
+        });
+        return new Response(simulatedStream, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache, no-transform" } });
+    }
     const client = gemini;
     if (!client) return Response.json({ error: "Gemini API key is not configured" }, { status: 500 });
 
-    const body = await request.json();
     const history = Array.isArray(body.history) ? body.history : [];
     const messages: ChatMessage[] = history
         .filter((message: IncomingMessage) => (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
@@ -35,9 +54,21 @@ export async function POST(request: NextRequest) {
     }
 
     const latestUserMessage = messages[messages.length - 1].parts[0].text;
+    if (!latestUserMessage.trim()) {
+        return Response.json({ error: "A user message is required" }, { status: 400 });
+    }
     const shouldCallUniversityTool = requestsUniversityInfo(latestUserMessage);
 
     let stream: AsyncGenerator<GenerateContentResponse> | undefined;
+    const sendError = (controller: ReadableStreamDefaultController<Uint8Array>, error: unknown, fallback = "The AI service could not complete this request.") => {
+        const status = typeof error === "object" && error !== null && "status" in error ? Number(error.status) : 0;
+        controller.enqueue(encoder.encode(`${JSON.stringify({
+            type: "error",
+            code: status === 429 ? "rate-limit" : "stream-failure",
+            message: status === 429 ? "Too many requests. Please try again shortly." : fallback,
+            retryable: true,
+        })}\n`));
+    };
     const textStream = new ReadableStream<Uint8Array>({
         async start(controller) {
             try {
@@ -75,6 +106,11 @@ export async function POST(request: NextRequest) {
                             send({ type: "tool", state: "input-streaming", name: toolCall.name });
                         }
                     }
+                    if (debugFailure === "stream" && (firstResponseText.length > 0 || toolCall)) {
+                        sendError(controller, null, "The response was interrupted. Your partial answer is preserved.");
+                        controller.close();
+                        return;
+                    }
                 }
 
                 if (toolCall?.name === getUniversityInfoTool.name) {
@@ -105,7 +141,8 @@ export async function POST(request: NextRequest) {
                 }
                 controller.close();
             } catch (error) {
-                controller.error(error);
+                sendError(controller, error);
+                controller.close();
             }
         },
         async cancel() {
