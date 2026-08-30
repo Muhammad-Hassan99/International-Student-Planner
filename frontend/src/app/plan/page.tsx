@@ -150,7 +150,7 @@ function PlanContent() {
             <div className="absolute -inset-4 bg-primary/20 rounded-3xl blur-2xl group-hover:bg-primary/30 transition-all"></div>
             <div className="relative rounded-2xl overflow-hidden shadow-2xl">
               <img
-                className="h-100 w-full object-cover"
+                className="w-full h-[400px] object-cover"
                 alt="Group of diverse international students"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHSmB9ezB4cUXDNcWKhETjg7U4bA0nBgjD58jcA6t1A31fe6wuh-mOQZEkNVk1VuAOPQKXt000rOjIBMAY1WdnBNj2xw4AVZME4ELiKAP0o6Z5j2X4FUv7m_evN_5fjEyRxsdccrpBScDyon7wmx06y3NKh1zFV97Slvrwt3ppMQJHOP_B7w3oSa5lvkP42z12dTIq7m7xUwRo-rOdKViWI72EkIq3tG-z16BqlCuS0KXl1mHx_DmUfFWiVOq0X1pHoayFHqmF3hI"
               />

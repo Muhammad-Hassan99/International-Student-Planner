@@ -119,7 +119,7 @@ export default function Navigation() {
                                 </div>
                                 <button
                                     onClick={handleLogout}
-                                    className="bg-red-500 hover:bg-red-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-md shadow-red-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                                    className="bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-xl shadow-md shadow-red-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                                     title="Log out of your account"
                                 >
                                     <span className="material-symbols-outlined text-base leading-none">logout</span>
